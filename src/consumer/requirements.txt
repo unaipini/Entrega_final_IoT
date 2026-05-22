@@ -1,0 +1,11 @@
+# src/consumer/requirements.txt
+# Dependencias del servicio consumidor.
+
+# Cliente MQTT para suscribirse al broker Mosquitto
+paho-mqtt==2.1.0
+
+# Driver PostgreSQL
+psycopg2-binary==2.9.9
+
+# Utilidades
+python-dotenv==1.0.1

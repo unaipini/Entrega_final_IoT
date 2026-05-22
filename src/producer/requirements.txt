@@ -1,0 +1,11 @@
+# src/producer/requirements.txt
+# Dependencias del servicio productor.
+
+# Cliente MQTT para publicar mensajes en el broker Mosquitto
+paho-mqtt==2.1.0
+
+# Cliente oficial de la API de Spotify
+spotipy==2.23.0
+
+# Utilidades
+python-dotenv==1.0.1

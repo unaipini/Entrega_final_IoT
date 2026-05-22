@@ -1,0 +1,27 @@
+# grafana/provisioning/datasources/postgres.yml
+# Grafana lee este fichero al arrancar y crea el datasource automáticamente.
+# Elimina la necesidad de configurarlo a mano desde la UI.
+# Documentación: https://grafana.com/docs/grafana/latest/administration/provisioning/
+
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    # El nombre del servicio Docker actúa como hostname dentro de la red iot_net
+    url: postgres:5432
+    user: ${POSTGRES_USER}
+    # La contraseña se inyecta desde la variable de entorno del contenedor Grafana
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable          # SSL desactivado en red Docker interna
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      # Activa el editor de métricas nativo de Grafana para PostgreSQL
+      postgresVersion: 1600     # PostgreSQL 16
+      timescaledb: false
+    isDefault: true
+    editable: false             # Evita modificaciones accidentales desde la UI

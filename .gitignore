@@ -1,0 +1,35 @@
+# Python 
+.venv/
+venv/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Variables de entorno y Seguridad 
+.env
+*.env
+.env.*
+secrets.toml
+*.pem
+*.cert
+*.key
+*.pub
+
+# Docker y Airflow 
+.logs/
+logs/
+airflow/logs/
+airflow/airflow.db
+airflow/webserver_config.py

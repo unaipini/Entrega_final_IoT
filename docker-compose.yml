@@ -1,0 +1,78 @@
+version: '3.8'
+
+# ============================================================
+# Pipeline de datos - Proyecto: Ciclo de Vida del Dato
+# Stack: Eclipse Mosquitto (MQTT) + PostgreSQL + pgAdmin
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # BROKER MQTT: Eclipse Mosquitto
+  # Recibe los mensajes del publisher y los reenvía
+  # al subscriber en tiempo real.
+  # ----------------------------------------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: spotify_mosquitto
+    ports:
+      - "1883:1883"   # Puerto estándar MQTT (TCP)
+      - "9001:9001"   # Puerto WebSocket (opcional, para clientes web)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config    # Configuración del broker
+      - ./mosquitto/data:/mosquitto/data        # Persistencia de mensajes
+      - ./mosquitto/log:/mosquitto/log          # Logs del broker
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ----------------------------------------------------------
+  # BASE DE DATOS: PostgreSQL 15
+  # Almacena las capas Bronze (raw) y Gold (analytics)
+  # de nuestra Arquitectura Medallón simplificada.
+  # ----------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: spotify_postgres
+    environment:
+      POSTGRES_DB:       spotify_datalake
+      POSTGRES_USER:     datauser
+      POSTGRES_PASSWORD: datapass123
+    ports:
+      - "5432:5432"   # Puerto estándar PostgreSQL
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Volumen para persistencia de datos
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datauser -d spotify_datalake"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # HERRAMIENTA WEB: pgAdmin 4
+  # Interfaz web para explorar la base de datos y
+  # verificar los datos de las capas Bronze y Gold.
+  # Acceso: http://localhost:5050
+  # Credenciales: admin@spotify.com / admin123
+  # ----------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: spotify_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    admin@spotify.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Volumen nombrado para que los datos de PostgreSQL
+# persistan aunque se haga docker-compose down
+volumes:
+  postgres_data:

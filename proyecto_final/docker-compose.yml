@@ -1,0 +1,198 @@
+# docker-compose.yml
+# Pipeline IoT de Spotify — versión combinada (Unai + Lama)
+#
+# Servicios:
+#   mosquitto         → broker MQTT
+#   postgres          → BD con schema Bronze + Gold normalizado
+#   grafana           → dashboard provisionado automáticamente
+#   airflow-init      → inicialización única de Airflow
+#   airflow-webserver → UI Airflow (http://localhost:8080)
+#   airflow-scheduler → ejecuta el DAG ETL cada hora
+#   producer          → publica CSV + API de Spotify en MQTT
+#   consumer          → recibe MQTT, guarda Bronze y Gold + agrega stats
+
+version: "3.9"
+
+x-airflow-common: &airflow-common
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+    SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    MQTT_BROKER: mosquitto
+    MQTT_PORT: 1883
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - airflow_logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - iot_net
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Broker MQTT
+  # --------------------------------------------------------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - iot_net
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Base de datos — schema Bronze + Gold cargado automáticamente
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - iot_net
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Grafana — datasource y dashboard provisionados automáticamente
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER:     ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_PATHS_PROVISIONING:      /etc/grafana/provisioning
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - iot_net
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Airflow
+  # --------------------------------------------------------------------------
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    command: bash -c "airflow db migrate && airflow users create --username admin --password admin123 --firstname Admin --lastname User --role Admin --email admin@example.com"
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: airflow webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: airflow scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Productor MQTT
+  # --------------------------------------------------------------------------
+  producer:
+    build:
+      context: ./src/producer
+      dockerfile: Dockerfile
+    container_name: spotify_producer
+    environment:
+      MQTT_BROKER:           mosquitto
+      MQTT_PORT:             1883
+      MQTT_TOPIC:            ${MQTT_TOPIC}
+      SPOTIFY_CLIENT_ID:     ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
+      CSV_PUBLISH_INTERVAL:  ${CSV_PUBLISH_INTERVAL:-0.05}
+    volumes:
+      - ./datos:/app/data:ro
+    depends_on:
+      - mosquitto
+    networks:
+      - iot_net
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Consumidor MQTT
+  # --------------------------------------------------------------------------
+  consumer:
+    build:
+      context: ./src/consumer
+      dockerfile: Dockerfile
+    container_name: spotify_consumer
+    environment:
+      MQTT_BROKER:     mosquitto
+      MQTT_PORT:       1883
+      MQTT_TOPIC:      ${MQTT_TOPIC}
+      POSTGRES_HOST:   postgres
+      POSTGRES_PORT:   5432
+      POSTGRES_DB:     ${POSTGRES_DB}
+      POSTGRES_USER:   ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - iot_net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  grafana_data:
+  mosquitto_data:
+  mosquitto_logs:
+  airflow_logs:
+
+networks:
+  iot_net:
+    driver: bridge

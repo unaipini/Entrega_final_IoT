@@ -1,0 +1,15 @@
+# airflow/requirements.txt
+# Dependencias adicionales instaladas sobre la imagen oficial de Airflow.
+# Las dependencias propias de Airflow (celery, etc.) ya vienen en la imagen base.
+
+# Cliente oficial de la API de Spotify
+spotipy==2.23.0
+
+# Driver PostgreSQL (psycopg2 en versión binaria para evitar compilar desde fuente)
+psycopg2-binary==2.9.9
+
+# Cliente MQTT (usado en el DAG para publicar mensajes de prueba)
+paho-mqtt==2.1.0
+
+# Utilidades
+python-dotenv==1.0.1

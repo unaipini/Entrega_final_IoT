@@ -1,0 +1,20 @@
+# grafana/provisioning/dashboards/dashboard.yml
+# Indica a Grafana dónde encontrar los ficheros JSON de dashboards.
+# Grafana los importa automáticamente al arrancar el contenedor.
+
+apiVersion: 1
+
+providers:
+  - name: Spotify IoT Dashboards
+    orgId: 1
+    # Carpeta de la UI de Grafana donde aparecerán los dashboards
+    folder: "Spotify IoT"
+    type: file
+    # Grafana detecta cambios en los JSON sin necesidad de reiniciar
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      # Ruta dentro del contenedor donde están los JSON de dashboards
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

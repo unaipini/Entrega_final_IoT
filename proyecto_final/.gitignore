@@ -1,0 +1,29 @@
+# Variables de entorno — NUNCA subir al repositorio
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# Datos (el CSV pesa ~20MB)
+datos/dataset.csv
+datos/spotify_tracks.csv
+
+# Docker
+mosquitto/data/
+mosquitto/log/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

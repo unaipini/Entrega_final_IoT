@@ -1,35 +1,29 @@
-# Python 
+# Variables de entorno — NUNCA subir al repositorio
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
-ENV/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
+*.egg
 
-# IDEs
-.vscode/
+# Datos (el CSV pesa ~20MB)
+datos/dataset.csv
+datos/spotify_tracks.csv
+
+# Docker
+mosquitto/data/
+mosquitto/log/
+
+# IDE
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
+.vscode/
 *.swp
 
-# Variables de entorno y Seguridad 
-.env
-*.env
-.env.*
-secrets.toml
-*.pem
-*.cert
-*.key
-*.pub
-
-# Docker y Airflow 
-.logs/
-logs/
-airflow/logs/
-airflow/airflow.db
-airflow/webserver_config.py
+# OS
+.DS_Store
+Thumbs.db

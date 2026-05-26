@@ -23,7 +23,6 @@ import os
 import time
 
 import paho.mqtt.client as mqtt
-
 from spotify_client import stream_new_releases
 
 # Configuracion del sistema de logging
@@ -91,7 +90,9 @@ def _on_connect(client, userdata, flags, reason_code, properties=None):
     if reason_code == 0:
         logger.info("Conectado al broker MQTT en %s:%d", MQTT_BROKER, MQTT_PORT)
     else:
-        logger.error("Fallo de conexion al broker MQTT. Codigo de error: %s", reason_code)
+        logger.error(
+            "Fallo de conexion al broker MQTT. Codigo de error: %s", reason_code
+        )
 
 
 def publish(client: mqtt.Client, payload: dict) -> None:
@@ -110,7 +111,9 @@ def publish(client: mqtt.Client, payload: dict) -> None:
     result = client.publish(MQTT_TOPIC, message, qos=1)
     result.wait_for_publish(timeout=5)
     logger.debug(
-        "Mensaje publicado: %s [Origen: %s]", payload.get("track_name"), payload.get("data_source")
+        "Mensaje publicado: %s [Origen: %s]",
+        payload.get("track_name"),
+        payload.get("data_source"),
     )
 
 
@@ -130,7 +133,8 @@ def publish_csv(client: mqtt.Client) -> None:
     """
     if not os.path.exists(CSV_PATH):
         logger.warning(
-            "Archivo CSV historico no encontrado en %s. Se omitira su publicacion.", CSV_PATH
+            "Archivo CSV historico no encontrado en %s. Se omitira su publicacion.",
+            CSV_PATH,
         )
         return
 
@@ -166,7 +170,9 @@ def publish_csv(client: mqtt.Client) -> None:
                 logger.info("Progreso CSV: %d pistas publicadas en el broker.", count)
             time.sleep(CSV_INTERVAL)
 
-    logger.info("Finalizada la publicacion del CSV: Un total de %d pistas inyectadas.", count)
+    logger.info(
+        "Finalizada la publicacion del CSV: Un total de %d pistas inyectadas.", count
+    )
 
 
 def publish_api(client: mqtt.Client) -> None:
@@ -180,14 +186,18 @@ def publish_api(client: mqtt.Client) -> None:
     Args:
         client (mqtt.Client): Instancia activa del cliente MQTT.
     """
-    logger.info("Iniciando ciclo de extraccion de nuevos lanzamientos desde la API de Spotify.")
+    logger.info(
+        "Iniciando ciclo de extraccion de nuevos lanzamientos desde la API de Spotify."
+    )
     try:
         for track in stream_new_releases(limit=20):
             track["data_source"] = "api"
             publish(client, track)
             time.sleep(1)
     except Exception as exc:
-        logger.error("Se produjo un error al extraer datos interactivos de Spotify: %s", exc)
+        logger.error(
+            "Se produjo un error al extraer datos interactivos de Spotify: %s", exc
+        )
 
 
 def main() -> None:

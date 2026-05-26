@@ -68,24 +68,26 @@ def stream_new_releases(limit: int = 20) -> Generator[dict, None, None]:
             album_tracks = sp.album_tracks(album["id"])
             for track in album_tracks.get("items", [])[:3]:
                 artist = album["artists"][0] if album.get("artists") else {}
-                tracks_buffer.append({
-                    "track_id":   track["id"],
-                    "track_name": track["name"],
-                    "artist_id":  artist.get("id"),
-                    "artist_name": artist.get("name"),
-                    "album_id":   album["id"],
-                    "album_name": album["name"],
-                    "duration_ms": track.get("duration_ms"),
-                    "explicit":   track.get("explicit", False),
-                    "source":     "api",
-                })
+                tracks_buffer.append(
+                    {
+                        "track_id": track["id"],
+                        "track_name": track["name"],
+                        "artist_id": artist.get("id"),
+                        "artist_name": artist.get("name"),
+                        "album_id": album["id"],
+                        "album_name": album["name"],
+                        "duration_ms": track.get("duration_ms"),
+                        "explicit": track.get("explicit", False),
+                        "source": "api",
+                    }
+                )
 
         # Fase de enriquecimiento con caracteristicas de audio en lotes
         # Se agrupan los IDs en fragmentos de maximo 100 elementos por restriccion de la API
         track_ids = [t["track_id"] for t in tracks_buffer if t["track_id"]]
         features_map: dict = {}
         for i in range(0, len(track_ids), 100):
-            batch = track_ids[i:i + 100]
+            batch = track_ids[i : i + 100]
             results = sp.audio_features(batch) or []
             for feat in results:
                 if feat:
@@ -96,18 +98,18 @@ def stream_new_releases(limit: int = 20) -> Generator[dict, None, None]:
             feat = features_map.get(track["track_id"], {})
             yield {
                 **track,
-                "danceability":     feat.get("danceability"),
-                "energy":           feat.get("energy"),
-                "valence":          feat.get("valence"),
-                "tempo":            feat.get("tempo"),
-                "loudness":         feat.get("loudness"),
-                "speechiness":      feat.get("speechiness"),
-                "acousticness":     feat.get("acousticness"),
+                "danceability": feat.get("danceability"),
+                "energy": feat.get("energy"),
+                "valence": feat.get("valence"),
+                "tempo": feat.get("tempo"),
+                "loudness": feat.get("loudness"),
+                "speechiness": feat.get("speechiness"),
+                "acousticness": feat.get("acousticness"),
                 "instrumentalness": feat.get("instrumentalness"),
-                "liveness":         feat.get("liveness"),
-                "key":              feat.get("key"),
-                "mode":             feat.get("mode"),
-                "time_signature":   feat.get("time_signature"),
+                "liveness": feat.get("liveness"),
+                "key": feat.get("key"),
+                "mode": feat.get("mode"),
+                "time_signature": feat.get("time_signature"),
             }
 
     except spotipy.exceptions.SpotifyException as exc:

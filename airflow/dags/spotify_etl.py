@@ -141,7 +141,9 @@ def spotify_etl():
                     "name": album["name"],
                     "release_date": album.get("release_date"),
                     "total_tracks": album.get("total_tracks", 0),
-                    "artist_id": album["artists"][0]["id"] if album["artists"] else None,
+                    "artist_id": (
+                        album["artists"][0]["id"] if album["artists"] else None
+                    ),
                 }
             )
 
@@ -152,7 +154,10 @@ def spotify_etl():
 
         # Consolidacion de IDs omitiendo elementos repetidos
         all_track_ids = list(set(track_ids_from_releases + track_ids_from_search))
-        logger.info("Identificadas %d pistas unicas para extraccion profunda.", len(all_track_ids))
+        logger.info(
+            "Identificadas %d pistas unicas para extraccion profunda.",
+            len(all_track_ids),
+        )
 
         # Fase 3: Peticiones en lote para obtener la informacion completa de cada pista
         tracks_full: list[dict] = []
@@ -282,9 +287,7 @@ def spotify_etl():
             valence = feat.get("valence") or 0.0
 
             # Calculo del 'party_index' utilizando ponderaciones especificas
-            party_index = round(
-                danceability * 0.40 + energy * 0.35 + valence * 0.25, 3
-            )
+            party_index = round(danceability * 0.40 + energy * 0.35 + valence * 0.25, 3)
 
             features_clean.append(
                 {
@@ -308,7 +311,10 @@ def spotify_etl():
         logger.info(
             "Fase de transformacion finalizada. Cantidades -> "
             "Artistas: %d, Albumes: %d, Pistas: %d, Propiedades acusticas: %d",
-            len(artists_clean), len(albums_clean), len(tracks_clean), len(features_clean),
+            len(artists_clean),
+            len(albums_clean),
+            len(tracks_clean),
+            len(features_clean),
         )
 
         return {
@@ -347,7 +353,12 @@ def spotify_etl():
                         SET popularity = EXCLUDED.popularity,
                             genres     = EXCLUDED.genres
                     """,
-                    (artist["id"], artist["name"], artist["genres"], artist["popularity"]),
+                    (
+                        artist["id"],
+                        artist["name"],
+                        artist["genres"],
+                        artist["popularity"],
+                    ),
                 )
 
             # Volcado de entidad: Albumes
@@ -359,8 +370,11 @@ def spotify_etl():
                     ON CONFLICT (id) DO NOTHING
                     """,
                     (
-                        album["id"], album["name"], album["artist_id"],
-                        album["release_date"], album["total_tracks"],
+                        album["id"],
+                        album["name"],
+                        album["artist_id"],
+                        album["release_date"],
+                        album["total_tracks"],
                     ),
                 )
 
@@ -377,10 +391,14 @@ def spotify_etl():
                     ON CONFLICT (id) DO NOTHING
                     """,
                     (
-                        track["id"], track["name"],
-                        track["artist_id"], track["album_id"],
-                        track["duration_ms"], track["explicit"],
-                        track["popularity"], track["source"],
+                        track["id"],
+                        track["name"],
+                        track["artist_id"],
+                        track["album_id"],
+                        track["duration_ms"],
+                        track["explicit"],
+                        track["popularity"],
+                        track["source"],
                     ),
                 )
                 if cur.rowcount > 0:
@@ -399,9 +417,18 @@ def spotify_etl():
                     ON CONFLICT (track_id) DO NOTHING
                     """,
                     (
-                        feat["track_id"], feat["danceability"], feat["energy"], feat["valence"],
-                        feat["tempo"], feat["loudness"], feat["speechiness"], feat["acousticness"],
-                        feat["instrumentalness"], feat["liveness"], feat["key"], feat["mode"],
+                        feat["track_id"],
+                        feat["danceability"],
+                        feat["energy"],
+                        feat["valence"],
+                        feat["tempo"],
+                        feat["loudness"],
+                        feat["speechiness"],
+                        feat["acousticness"],
+                        feat["instrumentalness"],
+                        feat["liveness"],
+                        feat["key"],
+                        feat["mode"],
                         feat["time_signature"],
                     ),
                 )
@@ -412,14 +439,16 @@ def spotify_etl():
             logger.info(
                 "Fase de carga finalizada con exito. Metricas de insercion -> "
                 "Nuevas Pistas: %d, Nuevas Propiedades acusticas: %d",
-                tracks_inserted, features_inserted,
+                tracks_inserted,
+                features_inserted,
             )
 
         except Exception as exc:
             conn.rollback()
             logger.error(
                 "Se produjo una falla grave durante la escritura en base de datos. "
-                "Se realiza rollback: %s", exc
+                "Se realiza rollback: %s",
+                exc,
             )
             raise
         finally:

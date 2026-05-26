@@ -152,12 +152,16 @@ class TestTransformer:
         Asegura que bajo condiciones nominales (todos los datos validos), el
         transformador emita un diccionario final sin mutar los campos vitales.
         """
-        result = consumer._transform({
-            "track_id": "4iV5W9uYEdYUVa79Axb7Rh",
-            "track_name": "Blinding Lights",
-            "danceability": "0.514", "energy": "0.730", "valence": "0.334",
-            "data_source": "csv",
-        })
+        result = consumer._transform(
+            {
+                "track_id": "4iV5W9uYEdYUVa79Axb7Rh",
+                "track_name": "Blinding Lights",
+                "danceability": "0.514",
+                "energy": "0.730",
+                "valence": "0.334",
+                "data_source": "csv",
+            }
+        )
         assert result is not None
         assert result["track_id"] == "4iV5W9uYEdYUVa79Axb7Rh"
         assert result["danceability"] == 0.514
@@ -167,18 +171,18 @@ class TestTransformer:
         Asegura la conversion correcta hacia booleano cuando la bandera de contenido
         explicito llega definida como una cadena textual representativa (True).
         """
-        result = consumer._transform({
-            "track_id": "abc123", "explicit": "True", "data_source": "csv"
-        })
+        result = consumer._transform(
+            {"track_id": "abc123", "explicit": "True", "data_source": "csv"}
+        )
         assert result["explicit"] is True
 
     def test_explicit_normalization_false_string(self):
         """
         Asegura la resolucion a un falso absoluto cuando el string denota negacion.
         """
-        result = consumer._transform({
-            "track_id": "abc123", "explicit": "False", "data_source": "csv"
-        })
+        result = consumer._transform(
+            {"track_id": "abc123", "explicit": "False", "data_source": "csv"}
+        )
         assert result["explicit"] is False
 
     def test_source_defaults_to_csv(self):
@@ -202,11 +206,13 @@ class TestTransformer:
         Evalua la funcionalidad de mineria de datos interna basada en expresiones regulares,
         verificando la correcta extraccion de cronologia desde cadenas no formateadas.
         """
-        result = consumer._transform({
-            "track_id": "abc123",
-            "album_name": "Greatest Hits 1999",
-            "data_source": "csv",
-        })
+        result = consumer._transform(
+            {
+                "track_id": "abc123",
+                "album_name": "Greatest Hits 1999",
+                "data_source": "csv",
+            }
+        )
         assert result["release_year"] == 1999
 
     def test_danceability_out_of_range_is_none(self):
@@ -215,7 +221,7 @@ class TestTransformer:
         anomalo provocara su neutralizacion puntual en la entidad, sin descartar
         necesariamente la fila completa (salvo en caso de llaves primarias).
         """
-        result = consumer._transform({
-            "track_id": "abc123", "danceability": "1.5", "data_source": "csv"
-        })
+        result = consumer._transform(
+            {"track_id": "abc123", "danceability": "1.5", "data_source": "csv"}
+        )
         assert result["danceability"] is None

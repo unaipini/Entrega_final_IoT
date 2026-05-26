@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- CAPA BRONZE
 --
 -- Almacenamiento de datos crudos.
--- Todo mensaje MQTT recibido es persistido en esta capa de forma integra y sin 
+-- Todo mensaje MQTT recibido es persistido en esta capa de forma integra y sin
 -- alteraciones. Actua como registro inmutable para auditorias o reprocesamiento
 -- en caso de fallas en los pipelines de transformacion (Data Lake logico).
 
@@ -81,9 +81,9 @@ CREATE TABLE IF NOT EXISTS audio_features (
     key               SMALLINT,
     mode              SMALLINT CHECK (mode IN (0, 1)),
     time_signature    SMALLINT,
-    
-    -- El indice party_index es una metrica derivada calculada directamente 
-    -- en base de datos. Pondera las metricas priorizando la bailabilidad (40%), 
+
+    -- El indice party_index es una metrica derivada calculada directamente
+    -- en base de datos. Pondera las metricas priorizando la bailabilidad (40%),
     -- seguida de energia (35%) y positividad o valencia (25%).
     party_index       NUMERIC(4,3) GENERATED ALWAYS AS (
                           ROUND(danceability * 0.40 + energy * 0.35 + valence * 0.25, 3)

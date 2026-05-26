@@ -539,7 +539,8 @@ def _process_message(conn, raw_payload: dict) -> None:
         conn.rollback()
         logger.error(
             "Fallo al persistir la pista %s en modelo relacional: %s",
-            data.get("track_id"), exc
+            data.get("track_id"),
+            exc,
         )
         _discarded_counter += 1
     finally:
@@ -557,7 +558,9 @@ def _process_message(conn, raw_payload: dict) -> None:
             _refresh_genre_stats(conn)
             _refresh_temporal_trends(conn)
         except Exception as exc:
-            logger.error("Error critico al recalcular las vistas de agregacion: %s", exc)
+            logger.error(
+                "Error critico al recalcular las vistas de agregacion: %s", exc
+            )
 
 
 # Bloque Principal
@@ -576,11 +579,14 @@ def main() -> None:
     def on_connect(client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
             logger.info(
-                "Conexion MQTT exitosa. Iniciando escucha permanente en el topico: %s", MQTT_TOPIC
+                "Conexion MQTT exitosa. Iniciando escucha permanente en el topico: %s",
+                MQTT_TOPIC,
             )
             client.subscribe(MQTT_TOPIC, qos=1)
         else:
-            logger.error("Fallo durante el handshake MQTT. Codigo devuelto: %s", reason_code)
+            logger.error(
+                "Fallo durante el handshake MQTT. Codigo devuelto: %s", reason_code
+            )
 
     def on_message(client, userdata, msg):
         nonlocal conn
@@ -590,18 +596,18 @@ def main() -> None:
         except json.JSONDecodeError as exc:
             logger.error(
                 "Estructura invalida recibida: El mensaje no es un JSON parseable. "
-                "Detalles: %s", exc
+                "Detalles: %s",
+                exc,
             )
         except Exception as exc:
             logger.error(
                 "Inestabilidad no controlada en el procesamiento: %s. "
-                "Procediendo a regenerar conexion...", exc
+                "Procediendo a regenerar conexion...",
+                exc,
             )
             conn = _get_pg_connection()
 
-    client = mqtt.Client(
-        mqtt.CallbackAPIVersion.VERSION2, client_id="spotify_consumer"
-    )
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="spotify_consumer")
     client.on_connect = on_connect
     client.on_message = on_message
 

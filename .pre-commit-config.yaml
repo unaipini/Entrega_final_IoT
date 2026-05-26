@@ -59,6 +59,7 @@ repos:
     hooks:
       - id: bandit
         args: ["-r", "src/", "--skip", "B101"]
+        pass_filenames: false
 
   # ---------------------------------------------------------------------------
   # Gitleaks — detecta credenciales y secretos en el repositorio Git

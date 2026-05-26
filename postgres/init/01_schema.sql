@@ -1,15 +1,19 @@
 -- 01_schema.sql
+--
 -- Esquema de la base de datos del pipeline IoT de Spotify.
--- Arquitectura Medallón completa: Bronze (raw) + Gold (analytics)
--- Ejecutado automáticamente por PostgreSQL al arrancar por primera vez.
+-- Implementa una arquitectura Medallon completa: Bronze (raw) y Gold (analytics).
+-- Este script es ejecutado automaticamente por PostgreSQL durante su inicializacion.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ===========================================================================
--- CAPA BRONZE — Datos crudos
--- Cada mensaje MQTT recibido se guarda aquí sin tocar.
--- Permite auditoría completa: qué llegó al sistema vs qué pasó validación.
--- ===========================================================================
+
+-- CAPA BRONZE
+--
+-- Almacenamiento de datos crudos.
+-- Todo mensaje MQTT recibido es persistido en esta capa de forma integra y sin 
+-- alteraciones. Actua como registro inmutable para auditorias o reprocesamiento
+-- en caso de fallas en los pipelines de transformacion (Data Lake logico).
+
 CREATE TABLE IF NOT EXISTS bronze_raw (
     id          SERIAL PRIMARY KEY,
     received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -18,9 +22,12 @@ CREATE TABLE IF NOT EXISTS bronze_raw (
 
 CREATE INDEX IF NOT EXISTS idx_bronze_payload ON bronze_raw USING GIN (payload);
 
--- ===========================================================================
--- CAPA GOLD — Esquema normalizado de producción
--- ===========================================================================
+
+-- CAPA GOLD
+--
+-- Esquema relacional normalizado.
+-- Contiene las dimensiones y hechos ya procesados, listos para su consumo
+-- en herramientas analiticas y dashboards de Grafana.
 
 CREATE TABLE IF NOT EXISTS artists (
     id          VARCHAR(22)  PRIMARY KEY,
@@ -51,6 +58,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     duration_min NUMERIC(5,2) GENERATED ALWAYS AS (ROUND(duration_ms / 60000.0, 2)) STORED,
     explicit     BOOLEAN      DEFAULT FALSE,
     popularity   SMALLINT,
+    track_genre  VARCHAR(100),
     source       VARCHAR(10)  NOT NULL CHECK (source IN ('csv', 'api')),
     ingested_at  TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -73,8 +81,10 @@ CREATE TABLE IF NOT EXISTS audio_features (
     key               SMALLINT,
     mode              SMALLINT CHECK (mode IN (0, 1)),
     time_signature    SMALLINT,
-    -- party_index ponderado: danceability(40%) > energy(35%) > valence(25%)
-    -- Una canción puede ser energética pero no bailable, de ahí el mayor peso de danceability.
+    
+    -- El indice party_index es una metrica derivada calculada directamente 
+    -- en base de datos. Pondera las metricas priorizando la bailabilidad (40%), 
+    -- seguida de energia (35%) y positividad o valencia (25%).
     party_index       NUMERIC(4,3) GENERATED ALWAYS AS (
                           ROUND(danceability * 0.40 + energy * 0.35 + valence * 0.25, 3)
                       ) STORED
@@ -82,7 +92,8 @@ CREATE TABLE IF NOT EXISTS audio_features (
 
 CREATE INDEX IF NOT EXISTS idx_audio_party_index ON audio_features(party_index DESC);
 
--- Agregado pre-calculado por género (se refresca cada 500 mensajes)
+-- Tabla de Agregacion Gold: Estadisticas por genero
+-- Vistas materializadas logicamente (actualizadas periodicamente desde el consumidor)
 CREATE TABLE IF NOT EXISTS gold_genre_stats (
     track_genre         TEXT        PRIMARY KEY,
     track_count         INTEGER,
@@ -95,7 +106,7 @@ CREATE TABLE IF NOT EXISTS gold_genre_stats (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Tendencias temporales por año (se refresca cada 500 mensajes)
+-- Tabla de Agregacion Gold: Tendencias temporales por ano de lanzamiento
 CREATE TABLE IF NOT EXISTS gold_temporal_trends (
     release_year        SMALLINT    PRIMARY KEY,
     track_count         INTEGER,
@@ -107,7 +118,7 @@ CREATE TABLE IF NOT EXISTS gold_temporal_trends (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Vistas para Grafana
+-- Vistas estandar para facilitar las consultas desde Grafana
 CREATE OR REPLACE VIEW vw_tracks_with_party AS
 SELECT
     t.id,

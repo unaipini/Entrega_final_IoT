@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "consumer"))
 
 import main as consumer  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: E402
 
 
 class TestSafeConversions:
@@ -226,8 +227,10 @@ class TestTransformer:
         )
         assert result["danceability"] is None
 
-from unittest.mock import MagicMock, patch
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Tests adicionales para incrementar la cobertura al umbral requerido (70 %)
+# ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractYear:
     """
@@ -452,7 +455,7 @@ class TestDbFunctions:
         consumer._upsert_audio_features(cur, data)
         cur.execute.assert_called_once()
 
-    # ── _refresh_genre_stats 
+    # ── _refresh_genre_stats ──────────────────────────────────────────────────
 
     def test_refresh_genre_stats_executes_and_commits(self):
         conn, _ = self._make_conn()

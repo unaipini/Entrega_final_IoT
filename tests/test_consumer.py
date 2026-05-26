@@ -232,6 +232,7 @@ class TestTransformer:
 # Tests adicionales para incrementar la cobertura al umbral requerido (70 %)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestExtractYear:
     """
     Valida la funcion auxiliar que extrae el anio de lanzamiento desde

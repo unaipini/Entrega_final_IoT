@@ -129,7 +129,9 @@ def publish_csv(client: mqtt.Client) -> None:
         client (mqtt.Client): Instancia activa del cliente MQTT.
     """
     if not os.path.exists(CSV_PATH):
-        logger.warning("Archivo CSV historico no encontrado en %s. Se omitira su publicacion.", CSV_PATH)
+        logger.warning(
+            "Archivo CSV historico no encontrado en %s. Se omitira su publicacion.", CSV_PATH
+        )
         return
 
     logger.info("Iniciando publicacion del dataset historico CSV desde %s", CSV_PATH)
@@ -198,7 +200,7 @@ def main() -> None:
        de no estar disponible la infraestructura.
     2. Dispara la publicacion secuencial del dataset historico en segundo plano.
     3. Mantiene un bucle infinito en el hilo principal que despierta cada hora (configurable)
-       para solicitar nuevos datos frescos desde la API de Spotify y evitar que el pipeline quede inactivo.
+       para solicitar nuevos datos frescos desde la API de Spotify y evitar inactividad.
     """
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="spotify_producer")
     client.on_connect = _on_connect
@@ -210,7 +212,9 @@ def main() -> None:
             client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
             connected = True
         except OSError:
-            logger.warning("El broker MQTT no se encuentra disponible. Reintentando la conexion en 5 segundos...")
+            logger.warning(
+                "El broker MQTT no se encuentra disponible. Reintentando conexion..."
+            )
             time.sleep(5)
 
     # Inicializa el hilo de red que maneja de forma concurrente el trafico entrante/saliente

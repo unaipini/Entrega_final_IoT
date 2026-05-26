@@ -306,7 +306,8 @@ def spotify_etl():
             )
 
         logger.info(
-            "Fase de transformacion finalizada. Cantidades -> Artistas: %d, Albumes: %d, Pistas: %d, Propiedades acusticas: %d",
+            "Fase de transformacion finalizada. Cantidades -> "
+            "Artistas: %d, Albumes: %d, Pistas: %d, Propiedades acusticas: %d",
             len(artists_clean), len(albums_clean), len(tracks_clean), len(features_clean),
         )
 
@@ -409,13 +410,17 @@ def spotify_etl():
 
             conn.commit()
             logger.info(
-                "Fase de carga finalizada con exito. Metricas de insercion -> Nuevas Pistas: %d, Nuevas Propiedades acusticas: %d",
+                "Fase de carga finalizada con exito. Metricas de insercion -> "
+                "Nuevas Pistas: %d, Nuevas Propiedades acusticas: %d",
                 tracks_inserted, features_inserted,
             )
 
         except Exception as exc:
             conn.rollback()
-            logger.error("Se produjo una falla grave durante la escritura en base de datos. Se realiza rollback: %s", exc)
+            logger.error(
+                "Se produjo una falla grave durante la escritura en base de datos. "
+                "Se realiza rollback: %s", exc
+            )
             raise
         finally:
             cur.close()

@@ -537,7 +537,10 @@ def _process_message(conn, raw_payload: dict) -> None:
         _message_counter += 1
     except Exception as exc:
         conn.rollback()
-        logger.error("Fallo al persistir la pista %s en modelo relacional: %s", data.get("track_id"), exc)
+        logger.error(
+            "Fallo al persistir la pista %s en modelo relacional: %s",
+            data.get("track_id"), exc
+        )
         _discarded_counter += 1
     finally:
         cur.close()
@@ -545,7 +548,8 @@ def _process_message(conn, raw_payload: dict) -> None:
     # Fase 4: Actualizacion periodica de analiticas para evitar recalculo por cada fila
     if _message_counter > 0 and _message_counter % REFRESH_EVERY_N == 0:
         logger.info(
-            "Ciclo de consolidacion: %d procesados | %d descartados. Lanzando actualizacion analitica...",
+            "Ciclo de consolidacion: %d procesados | %d descartados. "
+            "Lanzando actualizacion analitica...",
             _message_counter,
             _discarded_counter,
         )
@@ -584,10 +588,14 @@ def main() -> None:
             data = json.loads(msg.payload.decode("utf-8"))
             _process_message(conn, data)
         except json.JSONDecodeError as exc:
-            logger.error("Estructura invalida recibida: El mensaje no es un JSON parseable. Detalles: %s", exc)
+            logger.error(
+                "Estructura invalida recibida: El mensaje no es un JSON parseable. "
+                "Detalles: %s", exc
+            )
         except Exception as exc:
             logger.error(
-                "Inestabilidad no controlada en el procesamiento: %s. Procediendo a regenerar conexion...", exc
+                "Inestabilidad no controlada en el procesamiento: %s. "
+                "Procediendo a regenerar conexion...", exc
             )
             conn = _get_pg_connection()
 
@@ -603,7 +611,10 @@ def main() -> None:
             client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
             break
         except OSError:
-            logger.warning("El broker MQTT esta rechazando conexiones. Nuevo intento en 5 segundos...")
+            logger.warning(
+                "El broker MQTT esta rechazando conexiones. "
+                "Nuevo intento en 5 segundos..."
+            )
             time.sleep(5)
 
     logger.info("Motor consumidor MQTT cargado. En espera de streams entrantes.")

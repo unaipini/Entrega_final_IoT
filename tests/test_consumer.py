@@ -107,7 +107,7 @@ class TestPartyIndex:
     def test_party_index_blinding_lights(self):
         """
         Aplica el algoritmo sobre datos empiricos conocidos y verifica que el resultado
-        se encuentre en un umbral de desviacion esperado respecto al comportamiento en el mundo real.
+        se encuentre en un umbral de desviacion esperado respecto al comportamiento real.
         """
         d, e, v = 0.514, 0.730, 0.334
         party_index = round(d * 0.40 + e * 0.35 + v * 0.25, 3)

@@ -8,12 +8,12 @@ y en las politicas de higienizacion de los mensajes entrantes procedentes de MQT
 
 import os
 import sys
+from unittest.mock import MagicMock, patch
 
 # Ajuste del PATH para permitir la importacion directa del modulo a testear
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "consumer"))
 
 import main as consumer  # noqa: E402
-from unittest.mock import MagicMock, patch  # noqa: E402
 
 
 class TestSafeConversions:

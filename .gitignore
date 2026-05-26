@@ -11,10 +11,6 @@ build/
 venv/
 *.egg
 
-# Datos (el CSV pesa ~20MB)
-datos/dataset.csv
-datos/spotify_tracks.csv
-
 # Docker
 mosquitto/data/
 mosquitto/log/

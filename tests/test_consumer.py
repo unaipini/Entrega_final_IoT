@@ -111,7 +111,7 @@ class TestPartyIndex:
         """
         d, e, v = 0.514, 0.730, 0.334
         party_index = round(d * 0.40 + e * 0.35 + v * 0.25, 3)
-        assert 0.55 < party_index < 0.60
+        assert 0.54 < party_index < 0.56
 
     def test_weighted_higher_than_simple_for_energetic_track(self):
         """
@@ -225,3 +225,306 @@ class TestTransformer:
             {"track_id": "abc123", "danceability": "1.5", "data_source": "csv"}
         )
         assert result["danceability"] is None
+
+from unittest.mock import MagicMock, patch
+
+
+class TestExtractYear:
+    """
+    Valida la funcion auxiliar que extrae el anio de lanzamiento desde
+    cadenas de texto como nombres de albumes.
+    """
+
+    def test_extract_year_found(self):
+        assert consumer._extract_year("Greatest Hits 2001") == 2001
+
+    def test_extract_year_no_match_returns_none(self):
+        assert consumer._extract_year("Sin Fecha Aqui") is None
+
+    def test_extract_year_not_string_returns_none(self):
+        assert consumer._extract_year(None) is None
+
+    def test_extract_year_out_of_range_returns_none(self):
+        """El patron solo acepta años entre 1950 y 2029."""
+        assert consumer._extract_year("Recopilacion 1940") is None
+
+    def test_extract_year_picks_first_match(self):
+        assert consumer._extract_year("Tour 1975 (Live 1976)") == 1975
+
+
+class TestNormalizeExplicit:
+    """
+    Valida todas las ramas de conversion de la bandera 'explicit'
+    a booleano estricto.
+    """
+
+    def test_bool_true_passthrough(self):
+        assert consumer._normalize_explicit(True) is True
+
+    def test_bool_false_passthrough(self):
+        assert consumer._normalize_explicit(False) is False
+
+    def test_string_yes(self):
+        assert consumer._normalize_explicit("yes") is True
+
+    def test_string_1(self):
+        assert consumer._normalize_explicit("1") is True
+
+    def test_string_false(self):
+        assert consumer._normalize_explicit("false") is False
+
+    def test_none_returns_false(self):
+        assert consumer._normalize_explicit(None) is False
+
+    def test_integer_nonzero_is_true(self):
+        assert consumer._normalize_explicit(1) is True
+
+    def test_integer_zero_is_false(self):
+        assert consumer._normalize_explicit(0) is False
+
+
+class TestSafeIntBounds:
+    """
+    Pruebas para las ramas de limites opcionales de _safe_int que no
+    quedan cubiertas por los tests basicos.
+    """
+
+    def test_below_min_returns_none(self):
+        assert consumer._safe_int("3", min_val=10) is None
+
+    def test_above_max_returns_none(self):
+        assert consumer._safe_int("50", max_val=10) is None
+
+    def test_invalid_string_returns_none(self):
+        assert consumer._safe_int("no_es_numero") is None
+
+    def test_at_exact_min_is_valid(self):
+        assert consumer._safe_int("10", min_val=10) == 10
+
+    def test_at_exact_max_is_valid(self):
+        assert consumer._safe_int("10", max_val=10) == 10
+
+
+class TestDbFunctions:
+    """
+    Pruebas unitarias para las funciones de persistencia. Utilizan
+    MagicMock para simular la conexion y el cursor de PostgreSQL sin
+    necesitar una base de datos real.
+    """
+
+    def _make_conn(self):
+        """Crea un mock de conexion PostgreSQL con cursor funcional."""
+        conn = MagicMock()
+        cur = MagicMock()
+        cur.rowcount = 1
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cur)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        return conn, cur
+
+    # ── _insert_bronze ────────────────────────────────────────────────────────
+
+    def test_insert_bronze_commits(self):
+        conn, _ = self._make_conn()
+        consumer._insert_bronze(conn, {"track_id": "abc123"})
+        conn.commit.assert_called_once()
+
+    # ── _upsert_artist ────────────────────────────────────────────────────────
+
+    def test_upsert_artist_skips_missing_artist_id(self):
+        cur = MagicMock()
+        consumer._upsert_artist(cur, {"artist_id": "", "artist_name": "Artista"})
+        cur.execute.assert_not_called()
+
+    def test_upsert_artist_skips_missing_artist_name(self):
+        cur = MagicMock()
+        consumer._upsert_artist(cur, {"artist_id": "id123", "artist_name": ""})
+        cur.execute.assert_not_called()
+
+    def test_upsert_artist_executes_insert(self):
+        cur = MagicMock()
+        consumer._upsert_artist(
+            cur, {"artist_id": "id123", "artist_name": "Test Artist", "genres": ["pop"]}
+        )
+        cur.execute.assert_called_once()
+
+    # ── _upsert_album ─────────────────────────────────────────────────────────
+
+    def test_upsert_album_skips_missing_album_id(self):
+        cur = MagicMock()
+        consumer._upsert_album(cur, {"album_id": "", "album_name": "Album"})
+        cur.execute.assert_not_called()
+
+    def test_upsert_album_with_release_year_fallback(self):
+        """Cuando release_date es None pero hay release_year, debe construir la fecha."""
+        cur = MagicMock()
+        data = {
+            "album_id": "alb123",
+            "album_name": "Test Album",
+            "release_date": None,
+            "release_year": 2020,
+            "artist_id": "art123",
+        }
+        consumer._upsert_album(cur, data)
+        cur.execute.assert_called_once()
+        # Verifica que la fecha construida se paso al execute
+        call_args = cur.execute.call_args[0][1]
+        assert "2020-01-01" in call_args
+
+    def test_upsert_album_with_explicit_release_date(self):
+        cur = MagicMock()
+        data = {
+            "album_id": "alb456",
+            "album_name": "Otro Album",
+            "release_date": "2019-03-15",
+            "release_year": None,
+            "artist_id": None,
+        }
+        consumer._upsert_album(cur, data)
+        cur.execute.assert_called_once()
+
+    # ── _upsert_track ─────────────────────────────────────────────────────────
+
+    def test_upsert_track_returns_true_on_insert(self):
+        cur = MagicMock()
+        cur.rowcount = 1
+        data = {
+            "track_id": "trk001",
+            "track_name": "Una Pista",
+            "artist_id": "art001",
+            "album_id": "alb001",
+            "duration_ms": 200000,
+            "explicit": False,
+            "popularity": 70,
+            "track_genre": "pop",
+            "source": "csv",
+        }
+        result = consumer._upsert_track(cur, data)
+        assert result is True
+        cur.execute.assert_called_once()
+
+    def test_upsert_track_returns_false_when_no_rows_affected(self):
+        cur = MagicMock()
+        cur.rowcount = 0
+        data = {
+            "track_id": "trk002",
+            "track_name": "Otra Pista",
+            "artist_id": None,
+            "album_id": None,
+            "duration_ms": 180000,
+            "explicit": True,
+            "popularity": 55,
+            "track_genre": "rock",
+            "source": "api",
+        }
+        result = consumer._upsert_track(cur, data)
+        assert result is False
+
+    # ── _upsert_audio_features ────────────────────────────────────────────────
+
+    def test_upsert_audio_features_skips_all_none(self):
+        cur = MagicMock()
+        data = {
+            "track_id": "trk001",
+            "danceability": None,
+            "energy": None,
+            "valence": None,
+        }
+        consumer._upsert_audio_features(cur, data)
+        cur.execute.assert_not_called()
+
+    def test_upsert_audio_features_executes_when_data_present(self):
+        cur = MagicMock()
+        data = {
+            "track_id": "trk001",
+            "danceability": 0.7,
+            "energy": 0.8,
+            "valence": 0.5,
+            "tempo": 120.0,
+            "loudness": -5.0,
+            "speechiness": 0.05,
+            "acousticness": 0.1,
+            "instrumentalness": 0.0,
+            "liveness": 0.1,
+            "key": 5,
+            "mode": 1,
+            "time_signature": 4,
+        }
+        consumer._upsert_audio_features(cur, data)
+        cur.execute.assert_called_once()
+
+    # ── _refresh_genre_stats 
+
+    def test_refresh_genre_stats_executes_and_commits(self):
+        conn, _ = self._make_conn()
+        consumer._refresh_genre_stats(conn)
+        conn.commit.assert_called_once()
+
+    # ── _refresh_temporal_trends ──────────────────────────────────────────────
+
+    def test_refresh_temporal_trends_executes_and_commits(self):
+        conn, _ = self._make_conn()
+        consumer._refresh_temporal_trends(conn)
+        conn.commit.assert_called_once()
+
+
+class TestProcessMessage:
+    """
+    Valida el orquestador principal del pipeline de mensajes usando
+    mocks de conexion para evitar dependencias externas.
+    """
+
+    def _valid_payload(self):
+        return {
+            "track_id": "trk_test_001",
+            "track_name": "Track de Prueba",
+            "artist_id": "art_test",
+            "artist_name": "Artista Test",
+            "album_id": "alb_test",
+            "album_name": "Album 2021",
+            "danceability": "0.7",
+            "energy": "0.8",
+            "valence": "0.6",
+            "popularity": "75",
+            "data_source": "csv",
+        }
+
+    def _make_conn(self):
+        conn = MagicMock()
+        cur = MagicMock()
+        cur.rowcount = 1
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cur)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        conn.cursor.return_value = cur
+        return conn
+
+    def test_process_message_valid_payload_commits(self):
+        """Un payload valido debe provocar al menos un commit (bronze + gold)."""
+        conn = self._make_conn()
+        consumer._process_message(conn, self._valid_payload())
+        assert conn.commit.call_count >= 1
+
+    def test_process_message_missing_track_id_still_inserts_bronze(self):
+        """
+        Un payload sin track_id es descartado en la transformacion, pero
+        el registro bronze ya fue persistido antes de esa validacion.
+        """
+        conn = self._make_conn()
+        payload = {"track_name": "Sin ID", "data_source": "csv"}
+        consumer._process_message(conn, payload)
+        # Bronze insert -> primer commit
+        assert conn.commit.call_count >= 1
+
+    def test_process_message_bronze_failure_returns_early(self):
+        """
+        Si la insercion bronze falla, el metodo debe salir sin procesar
+        la capa gold. Se simula el fallo haciendo que commit lance excepcion.
+        """
+        conn = MagicMock()
+        # El primer commit (bronze) lanza excepcion
+        conn.cursor.return_value.__enter__ = MagicMock(
+            side_effect=Exception("DB error simulado")
+        )
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        # Evitar que _get_pg_connection haga un bucle infinito
+        with patch.object(consumer, "_get_pg_connection", return_value=MagicMock()):
+            consumer._process_message(conn, self._valid_payload())

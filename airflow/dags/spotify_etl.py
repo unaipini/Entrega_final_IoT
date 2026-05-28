@@ -123,78 +123,65 @@ def spotify_etl():
 
         sp = _get_spotify_client()
 
-        # Fase 1: Obtencion de nuevos lanzamientos en la plataforma
-        new_releases_response = sp.new_releases(limit=20)
-        albums_raw = new_releases_response.get("albums", {}).get("items", [])
+        # Extraccion usando SOLO sp.search() — unico endpoint fiable en Development mode
+        queries = [
+            "genre:pop year:2024", "genre:rock year:2024",
+            "genre:hip-hop year:2023", "genre:electronic year:2024",
+            "genre:latin year:2024", "genre:jazz", "genre:classical",
+        ]
 
-        track_ids_from_releases: list[str] = []
         albums_data: list[dict] = []
-
-        for album in albums_raw:
-            album_tracks = sp.album_tracks(album["id"])
-            tracks_in_album = album_tracks.get("items", [])
-            for track in tracks_in_album[:3]:
-                track_ids_from_releases.append(track["id"])
-            albums_data.append(
-                {
-                    "id": album["id"],
-                    "name": album["name"],
-                    "release_date": album.get("release_date"),
-                    "total_tracks": album.get("total_tracks", 0),
-                    "artist_id": (
-                        album["artists"][0]["id"] if album["artists"] else None
-                    ),
-                }
-            )
-
-        # Fase 2: Busqueda adicional (genero Pop) para enriquecer el historico
-        search_result = sp.search(q="genre:pop", type="track", limit=20)
-        search_tracks = search_result.get("tracks", {}).get("items", [])
-        track_ids_from_search = [t["id"] for t in search_tracks]
-
-        # Consolidacion de IDs omitiendo elementos repetidos
-        all_track_ids = list(set(track_ids_from_releases + track_ids_from_search))
-        logger.info(
-            "Identificadas %d pistas unicas para extraccion profunda.",
-            len(all_track_ids),
-        )
-
-        # Fase 3: Peticiones en lote para obtener la informacion completa de cada pista
+        albums_seen: set[str] = set()
         tracks_full: list[dict] = []
         artists_map: dict[str, dict] = {}
 
+        for query in queries:
+            try:
+                result = sp.search(q=query, type="track", limit=10)
+                for track in result.get("tracks", {}).get("items", []):
+                    if track is None:
+                        continue
+                    tracks_full.append(track)
+                    album = track.get("album", {})
+                    if album.get("id") and album["id"] not in albums_seen:
+                        albums_seen.add(album["id"])
+                        albums_data.append({
+                            "id": album["id"],
+                            "name": album.get("name", ""),
+                            "release_date": album.get("release_date"),
+                            "total_tracks": album.get("total_tracks", 0),
+                            "artist_id": album["artists"][0]["id"] if album.get("artists") else None,
+                        })
+                    for artist in track.get("artists", []):
+                        if artist.get("id") and artist["id"] not in artists_map:
+                            artists_map[artist["id"]] = {
+                                "id": artist["id"],
+                                "name": artist.get("name", ""),
+                                "genres": [],
+                                "popularity": None,
+                            }
+            except Exception as e:
+                logger.warning("Error en query '%s': %s", query, e)
+
+        all_track_ids = [t["id"] for t in tracks_full if t.get("id")]
+        logger.info(
+            "Identificadas %d pistas para extraccion profunda.",
+            len(all_track_ids),
+        )
+
+        # Fase 3: Recuperar audio_features (unico endpoint adicional que se necesita)
+        audio_features_raw: list[dict] = []
         for i in range(0, len(all_track_ids), 50):
             batch = all_track_ids[i : i + 50]
-            tracks_response = sp.tracks(batch)
-            for track in tracks_response.get("tracks", []):
-                if track is None:
-                    continue
-                tracks_full.append(track)
-                for artist in track.get("artists", []):
-                    if artist["id"] not in artists_map:
-                        artists_map[artist["id"]] = artist
+            try:
+                features_batch = sp.audio_features(batch)
+                if features_batch:
+                    audio_features_raw.extend([f for f in features_batch if f is not None])
+            except Exception as e:
+                logger.warning("Error obteniendo audio_features: %s", e)
 
-        # Fase 4: Recuperacion en lote de los parametros acusticos de las pistas
-        audio_features_raw: list[dict] = []
-        for i in range(0, len(all_track_ids), 100):
-            batch = all_track_ids[i : i + 100]
-            features_batch = sp.audio_features(batch)
-            audio_features_raw.extend([f for f in features_batch if f is not None])
-
-        # Fase 5: Enriquecimiento de la entidad artista incorporando generos y nivel de popularidad
-        artist_ids = list(artists_map.keys())
-        artists_with_genres: dict[str, dict] = {}
-        for i in range(0, len(artist_ids), 50):
-            batch = artist_ids[i : i + 50]
-            artists_response = sp.artists(batch)
-            for artist in artists_response.get("artists", []):
-                if artist:
-                    artists_with_genres[artist["id"]] = {
-                        "id": artist["id"],
-                        "name": artist["name"],
-                        "genres": artist.get("genres", []),
-                        "popularity": artist.get("popularity"),
-                    }
+        # Fase 4: Artistas — usar los ya recogidos del search
+        artists_with_genres = artists_map
 
         logger.info(
             "Fase de extraccion finalizada exitosamente. Totales -> Artistas: %d, Pistas: %d",
@@ -362,7 +349,10 @@ def spotify_etl():
                 )
 
             # Volcado de entidad: Albumes
+            artist_ids_loaded = {a["id"] for a in transformed_data["artists"]}
             for album in transformed_data["albums"]:
+                # Solo usar artist_id si el artista fue insertado previamente
+                safe_artist_id = album["artist_id"] if album.get("artist_id") in artist_ids_loaded else None
                 cur.execute(
                     """
                     INSERT INTO albums (id, name, artist_id, release_date, total_tracks)
@@ -372,7 +362,7 @@ def spotify_etl():
                     (
                         album["id"],
                         album["name"],
-                        album["artist_id"],
+                        safe_artist_id,
                         album["release_date"],
                         album["total_tracks"],
                     ),

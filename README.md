@@ -59,7 +59,7 @@ cp .env.example .env
 Editar `.env` con:
 
 - **SPOTIFY_CLIENT_ID** y **SPOTIFY_CLIENT_SECRET**: obtener en https://developer.spotify.com/dashboard
-- **AIRFLOW__CORE__FERNET_KEY**: generar con:
+- **AIRFLOW_FERNET_KEY**: generar con:
   ```bash
   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
   ```

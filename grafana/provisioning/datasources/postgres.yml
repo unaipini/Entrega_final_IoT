@@ -3,7 +3,7 @@ datasources:
   - name: PostgreSQL
     type: postgres
     url: postgres:5432
-    user: spotify_user
+    user: spotify
     secureJsonData:
       password: admin_postgres_123
     jsonData:
